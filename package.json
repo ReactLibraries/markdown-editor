@@ -31,5 +31,7 @@
     "nextjs",
     "markdown",
     "editor"
-  ]
+  ],
+  "repository": "https://github.com/ReactLibraries/markdown-editor",
+  "author": "SoraKumo <info@croud.jp>"
 }
