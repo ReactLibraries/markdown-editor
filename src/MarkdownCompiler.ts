@@ -1,16 +1,20 @@
 import { Processor, Compiler } from "unified";
 import type unist from "unist";
 import type { Root, Content } from "mdast";
-import React, { ReactElement, ReactNode, useEffect, useRef, useState } from "react";
+//import React, { ReactElement, ReactNode, useEffect, useState } from "react";
+import { default as React } from "react";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
 export type VNode = { type: string; value?: unknown; start: number; end: number };
-let processor: Processor<Root, Root, Root, ReactElement>;
-const getProcesser = async () => {
+let processor: Processor<Root, Root, Root, React.ReactElement>;
+const getProcesser = () => {
   if (processor) return processor;
-  const [unified, remarkParse, remarkGfm] = await Promise.all([
-    import("unified").then((v) => v.unified),
-    import("remark-parse").then((v) => v.default),
-    import("remark-gfm").then((v) => v.default),
-  ]);
+  // const [unified, remarkParse, remarkGfm] = await Promise.all([
+  //   import("unified").then((v) => v.unified),
+  //   import("remark-parse").then((v) => v.default),
+  //   import("remark-gfm").then((v) => v.default),
+  // ]);
 
   function ReactCompiler(this: Processor) {
     const expandNode = (node: Content & Partial<unist.Parent<Content>>, nodes: VNode[]) => {
@@ -22,11 +26,11 @@ const getProcesser = async () => {
       });
       node.children?.forEach((n) => expandNode(n, nodes));
     };
-    const reactNode = (vnodes: VNode[], value: string): ReactNode => {
+    const reactNode = (vnodes: VNode[], value: string): React.ReactNode => {
       let position = 0;
       let index = 0;
       let nodeCount = 0;
-      const getNode = (limit: number): ReactNode => {
+      const getNode = (limit: number): React.ReactNode => {
         const nodes = [];
         while (position < limit && index < vnodes.length) {
           const vnode = vnodes[index];
@@ -95,16 +99,15 @@ const getProcesser = async () => {
     Root,
     Root,
     Root,
-    ReactElement
+    React.ReactElement
   >;
   processor = p;
   return p;
 };
 
 export const useMarkdown = (value: string) => {
-  const [node, setNode] = useState<ReactNode>();
-  useEffect(() => {
-    getProcesser().then((p) => p.process(value).then((v) => setNode(v.result)));
+  const node = React.useMemo(() => {
+    return getProcesser().processSync(value).result;
   }, [value]);
   return node;
 };

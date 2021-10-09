@@ -1,16 +1,25 @@
-import React, {
+// import React, {
+//   ClipboardEventHandler,
+//   DragEventHandler,
+//   FC,
+//   FormEventHandler,
+//   KeyboardEventHandler,
+//   useEffect,
+//   useLayoutEffect,
+//   useRef,
+//   useState,
+// } from "react";
+import type {
   ClipboardEventHandler,
   DragEventHandler,
   FC,
   FormEventHandler,
   KeyboardEventHandler,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
 } from "react";
-import { useMarkdown } from "./MarkdownCompiler";
-import { Root } from "./MarkdownEditor.style";
+import { default as React } from "react";
+const { useEffect, useLayoutEffect, useRef, useState } = React;
+import { useMarkdown } from "./MarkdownCompiler.js";
+import { Root } from "./MarkdownEditor.style.js";
 
 interface Props {
   className?: string;
@@ -292,3 +301,4 @@ export const MarkdownEditor: FC<Props> = ({ className, defaultValue, onChange })
     </Root>
   );
 };
+export default { MarkdownEditor };
