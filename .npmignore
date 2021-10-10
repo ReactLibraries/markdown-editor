@@ -1,5 +1,8 @@
 src
 node_modules
-typescript.json
+tsconfig.json
 yarn.lock
 .gitignore
+*.log
+.prettierrc
+.eslintrc.json
