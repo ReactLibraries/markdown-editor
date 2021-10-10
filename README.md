@@ -37,7 +37,7 @@ AAAAAAA
 `;
 
 const Page = () => {
-  return <MarkdownEditor defaultValue={value} onChange={(v) => console.log(v)} />;
+  return <MarkdownEditor defaultValue={value} onUpdate={(v) => console.log(v)} />;
 };
 export default Page;
 ```
