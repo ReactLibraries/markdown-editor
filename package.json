@@ -1,6 +1,6 @@
 {
   "name": "@react-libraries/markdown-editor",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
@@ -35,7 +35,9 @@
     "react",
     "nextjs",
     "markdown",
-    "editor"
+    "editor",
+    "ssr",
+    "typescript"
   ],
   "repository": "https://github.com/ReactLibraries/markdown-editor",
   "author": "SoraKumo <info@croud.jp>"
