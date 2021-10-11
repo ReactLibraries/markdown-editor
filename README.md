@@ -5,7 +5,9 @@
 Markdown editor for React  
 SSR in Next.js is also supported.
 
-[Demo](https://next-markdown-murex.vercel.app/)
+[Demo](https://next-markdown-murex.vercel.app/)  
+
+![2021-10-10-20-16-21](https://user-images.githubusercontent.com/54426986/136717840-48c96380-b65a-4c0a-96e8-330b84b2e253.gif)
 
 This is the current development version.  
 We are planning to add more features such as external operations.
