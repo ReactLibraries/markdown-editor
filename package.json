@@ -1,16 +1,15 @@
 {
   "name": "@react-libraries/markdown-editor",
-  "version": "0.0.4",
+  "description": "Markdown editor for React",
+  "version": "0.0.7",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
     "build": "tsc -b",
-    "build:test": "tsc -b && copy  /y dist\\*.* \\prog\\test\\next-markdown\\node_modules\\@react-libraries\\markdown-editor\\dist",
+    "build:test": "tsc -b && xcopy  /y /s dist\\*.* \\prog\\test\\next-markdown\\node_modules\\@react-libraries\\markdown-editor\\dist",
     "lint:fix": "eslint --fix && prettier -w src"
   },
   "dependencies": {
-    "@emotion/react": "^11.4.1",
-    "@emotion/styled": "^11.3.0",
     "@react-libraries/use-local-event": "^1.0.2",
     "react": "*",
     "react-dom": "*",
@@ -19,13 +18,13 @@
     "unified": "^10.1.0"
   },
   "devDependencies": {
-    "@types/react": "^17.0.27",
+    "@types/react": "^17.0.29",
     "@types/react-dom": "^17.0.9",
     "eslint": "^8.0.0",
     "eslint-config-next": "^11.1.2",
     "eslint-config-prettier": "^8.3.0",
     "prettier": "^2.4.1",
-    "typescript": "^4.4.3"
+    "typescript": "^4.4.4"
   },
   "type": "module",
   "publishConfig": {

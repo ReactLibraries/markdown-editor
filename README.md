@@ -102,6 +102,7 @@ export type MarkdownEvent =
     }
   | {
       type: "update";
+      //start&end:-1===text.length
       payload: { start?: number; end?: number; value?: string };
     }
   | {
@@ -110,4 +111,43 @@ export type MarkdownEvent =
   | {
       type: "undo";
     };
+```
+
+## Custom component
+
+```tsx
+const components: MarkdownComponents = {
+  strong: ({ children, node, ...props }) => <strong {...props}>{children}</strong>,
+  heading: ({ children, node, ...props }) => {
+    const Tag = ("h" + node.depth) as ElementType;
+    return (
+      <Tag
+        {...props}
+        onMouseOver={(e: React.MouseEvent<HTMLHeadingElement>) =>
+          setMessage(e.currentTarget.innerText)
+        }
+      >
+        {children}
+      </Tag>
+    );
+  },
+};
+…
+<MarkdownEditor components={components} />;
+```
+
+## Custom style
+
+```scss
+.markdown {
+  [datatype="heading"] {
+    color: blue;
+  }
+}
+```
+
+```tsx
+import styled from "./styled.module.scss";
+…
+<MarkdownEditor className={styled.markdown} />;
 ```
