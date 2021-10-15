@@ -9,9 +9,6 @@ SSR in Next.js is also supported.
 
 ![2021-10-10-20-16-21](https://user-images.githubusercontent.com/54426986/136717840-48c96380-b65a-4c0a-96e8-330b84b2e253.gif)
 
-This is the current development version.  
-In the future, we plan to make it possible to customize the decorations externally.
-
 ## Basic usage
 
 - No control
@@ -115,6 +112,10 @@ export type MarkdownEvent =
 
 ## Custom component
 
+[ComponentType](https://github.com/syntax-tree/mdast)
+
+If the number of characters in {children} changes, it will not work properly.
+
 ```tsx
 const components: MarkdownComponents = {
   strong: ({ children, node, ...props }) => <strong {...props}>{children}</strong>,
@@ -137,6 +138,10 @@ const components: MarkdownComponents = {
 ```
 
 ## Custom style
+
+[DataType](https://github.com/syntax-tree/mdast)
+
+If you use `display:block`, it will not work properly.
 
 ```scss
 .markdown {
