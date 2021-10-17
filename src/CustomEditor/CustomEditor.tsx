@@ -77,18 +77,23 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   value,
   onUpdate,
   onCreateNode,
+  onPaste,
   onInput,
+  onDragStart,
+  onKeyDown,
   onDrop,
+  onCompositionUpdate,
+  onCompositionEnd,
   ...props
 }) => {
   const refNode = useRef<HTMLDivElement>(null);
   const property = useRef<{
-    active?: boolean;
     position: number;
     dragText: string;
     histories: [number, string][];
     historyIndex: number;
     text: string;
+    compositData?: string;
   }>(defaultProperty).current;
   const [caret, setCaret] = useState(true);
   if (property.text === undefined) property.text = value || defaultValue || '';
@@ -169,27 +174,31 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     const text = currentText.slice(0, start) + currentText.slice(end, currentText.length);
     pushText(text);
   };
-  const handleInput: FormEventHandler<HTMLDivElement> = (e) => {
-    onInput?.(e);
+  const handleCompositionUpdate: CompositionEventHandler<HTMLDivElement> = (e) => {
+    onCompositionUpdate?.(e);
     if (e.isDefaultPrevented()) return;
-    e.preventDefault();
-    const currentText = e.currentTarget.innerText;
-    if (!property.active) {
-      pushText(currentText);
-      property.position = getPosition(refNode.current!)[0];
-    }
+    property.compositData = e.data;
   };
   const handleCompositionEnd: CompositionEventHandler<HTMLDivElement> = (e) => {
-    property.active = false;
-    pushText(e.currentTarget.innerText);
-    property.position = getPosition(refNode.current!)[0];
+    onCompositionEnd?.(e);
+    const selection = getSelection()!;
+    if (e.isDefaultPrevented()) return;
+    const range = document.createRange();
+    range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
+    range.setEnd(selection.focusNode!, selection.focusOffset);
+    range.deleteContents();
+    insertText(property.compositData);
   };
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (e) => {
+    onPaste?.(e);
+    if (e.isDefaultPrevented()) return;
     const t = e.clipboardData.getData('text/plain').replace(/\r\n/g, '\n');
     insertText(t);
     e.preventDefault();
   };
   const handleDragStart: DragEventHandler<HTMLDivElement> = (e) => {
+    onDragStart?.(e);
+    if (e.isDefaultPrevented()) return;
     property.dragText = e.dataTransfer.getData('text/plain');
   };
   const handleDrop: DragEventHandler<HTMLDivElement> = (e) => {
@@ -207,6 +216,8 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     e.preventDefault();
   };
   const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
+    onKeyDown?.(e);
+    if (e.isDefaultPrevented()) return;
     switch (e.key) {
       case 'Tab': {
         insertText('\t');
@@ -298,13 +309,12 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         ref={refNode}
         contentEditable
         spellCheck={false}
-        onInput={handleInput}
         onPaste={handlePaste}
         onDragStart={handleDragStart}
         onDrop={handleDrop}
         onKeyPress={handleKeyPress}
         onKeyDown={handleKeyDown}
-        onCompositionStart={() => (property.active = true)}
+        onCompositionUpdate={handleCompositionUpdate}
         onCompositionEnd={handleCompositionEnd}
         suppressContentEditableWarning={true}
         {...props}
@@ -326,7 +336,7 @@ const getNodeCount = (node: ReactNode) => {
 };
 const cssClassName = 'markdown__fewjol87e89fhnao';
 const css =
-  `.${cssClassName}{outline: none;white-space: pre-wrap;} ` + `.${cssClassName} *{display:inline;}`;
+  `.${cssClassName}{outline: none;white-space: pre-wrap} ` + `.${cssClassName} *{display:inline;}`;
 export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
   const selection = document.getSelection();
   if (!selection) return;
@@ -338,13 +348,14 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
         return [lastChild, (lastChild as HTMLElement).innerText.length];
       return [node, 0];
     }
+    const display =
+      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as HTMLElement).display;
+    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
+
+    if (display === 'none' || type === 'ignore') return [null, count];
+
     if (node.nodeType === Node.TEXT_NODE) {
       count -= node.textContent!.length;
-    } else if (node.nodeType === Node.ELEMENT_NODE && editor !== node) {
-      if (getComputedStyle(node as Element).display === 'block') {
-        if (node.nextSibling) count--;
-        if (node.parentElement?.childNodes[0] !== node) count--;
-      }
     }
     if (count <= 0) {
       return [node, (node.nodeType === Node.TEXT_NODE ? node.textContent!.length : 0) + count];
@@ -354,6 +365,14 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
       if (n) return [n, o];
       count = o;
     }
+    if (node.nodeType === Node.ELEMENT_NODE && editor !== node) {
+      if (node.nodeName === 'BR') {
+        count -= 1;
+      } else if (getComputedStyle(node as Element).display === 'block') {
+        if (node.nextSibling) count -= 1;
+      }
+    }
+
     return [null, count];
   };
   const [targetNode, offset] = findNode(editor, startPos);
@@ -382,24 +401,37 @@ export const getPosition = (editor: HTMLElement) => {
       ? [selection.anchorNode, selection.anchorOffset]
       : [selection.focusNode, selection.focusOffset];
     const findNode = (node: Node) => {
-      if (node === targetNode && (node !== editor || !targetOffset)) {
+      const display =
+        node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as Element).display;
+      const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
+      if (display === 'none' || type === 'ignore') return [false, 0] as const;
+      if (
+        node === targetNode &&
+        (node !== editor || !targetOffset) &&
+        node.nodeType === Node.TEXT_NODE
+      ) {
         return [true, targetOffset] as const;
       }
       let count = 0;
-      for (let i = 0; i < node.childNodes.length; i++) {
+
+      for (let i = 0; i < (node === targetNode ? targetOffset : node.childNodes.length); i++) {
         const [flag, length] = findNode(node.childNodes[i]);
         count += length;
         if (flag) return [true, count] as const;
       }
+      if (node === targetNode) return [true, count] as const;
       if (node.nodeType === Node.TEXT_NODE) {
         count += node.textContent!.length;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        if (getComputedStyle(node as Element).display === 'block') {
-          if (node.nextSibling) count++;
-          if (node.parentElement?.childNodes[0] !== node) count++;
+      } else {
+        if (node.nodeName === 'BR') {
+          count++;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          if (display === 'block') {
+            if (node.nextSibling) count++;
+          }
         }
       }
-      return [false, count] as const;
+      return [node === targetNode, count] as const;
     };
     const p = findNode(editor);
     return p[0] ? p[1] : p[1] - 1;

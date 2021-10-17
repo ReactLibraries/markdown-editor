@@ -1,4 +1,4 @@
-import React, { Attributes, HTMLAttributes, ReactNode } from 'react';
+import React, { Attributes, createElement, HTMLAttributes, ReactNode } from 'react';
 import type unist from 'unist';
 import type { Root, Content } from 'mdast';
 import { unified, Processor, Compiler } from 'unified';
@@ -18,13 +18,25 @@ export type MarkdownComponents = {
 
 const defaultComponents: MarkdownComponents = {
   heading: ({ children, node, ...props }) => React.createElement('h' + node.depth, props, children),
-  strong: ({ children, ...props }) => React.createElement('strong', props, children),
-  emphasis: ({ children, ...props }) => React.createElement('em', props, children),
-  inlineCode: ({ children, ...props }) => React.createElement('em', props, children),
-  code: ({ children, ...props }) => React.createElement('code', props, children),
-  list: ({ children, ...props }) => React.createElement('code', props, children),
-  table: ({ children, ...props }) => React.createElement('code', props, children),
+  strong: ({ children, node, ...props }) => React.createElement('strong', props, children),
+  emphasis: ({ children, node, ...props }) => React.createElement('em', props, children),
+  inlineCode: ({ children, node, ...props }) => React.createElement('em', props, children),
+  code: ({ children, node, ...props }) => React.createElement('code', props, children),
+  link: ({ children, node, ...props }) => React.createElement('span', props, children),
+  image: ({ children, node, ...props }) => React.createElement('span', props, children),
+  list: ({ children, node, ...props }) => React.createElement('span', props, children),
+  html: ({ children, node, ...props }) => React.createElement('span', props, children),
+  table: ({ children, node, ...props }) => React.createElement('code', props, children),
+  delete: ({ children, node, ...props }) => React.createElement('del', props, children),
+  paragraph: ({ children, node, ...props }) => React.createElement('p', props, children),
+  blockquote: ({ children, node, ...props }) => React.createElement('span', props, children),
 };
+
+const convertBreak = (value: string) =>
+  value
+    .split(/(\n)/g)
+    .map((v, index) => (index % 2 ? createElement('br', { key: index }) : v))
+    .filter((v) => v);
 
 function ReactCompiler(this: Processor, components?: MarkdownComponents) {
   const expandNode = (node: Content & Partial<unist.Parent<Content>>, nodes: VNode[]) => {
@@ -41,16 +53,16 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
         const vnode = vnodes[index];
         const [start, end] = [vnode.position!.start.offset!, vnode.position!.end.offset!];
         if (start > limit) {
-          nodes.push(value.substring(position, limit));
+          nodes.push(convertBreak(value.substring(position, limit)));
           position = limit;
           break;
         }
         if (position < start) {
           if (index < vnodes.length) {
-            nodes.push(value.substring(position, start));
+            nodes.push(convertBreak(value.substring(position, start)));
             position = start;
           } else {
-            nodes.push(value.substring(position, end));
+            nodes.push(convertBreak(value.substring(position, end)));
             position = end;
           }
         } else {
@@ -58,17 +70,18 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
           index++;
           if (markdownContent) {
             const children =
-              index < vnodes.length ? getNode(end) : value.substring(start, (position = end));
+              index < vnodes.length
+                ? getNode(end)
+                : convertBreak(value.substring(start, (position = end)));
             nodes.push(
               markdownContent({ key: index, node: vnode, datatype: vnode.type, children } as never)
             );
           }
-          //else nodes.push(children);
         }
       }
       if (position < limit) {
         nodeCount++;
-        nodes.push(value.substring(position, limit));
+        nodes.push(convertBreak(value.substring(position, limit)));
         position = limit;
       }
       nodeCount += nodes.length;
