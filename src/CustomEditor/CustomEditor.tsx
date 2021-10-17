@@ -346,7 +346,7 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
       while (lastChild.lastChild) lastChild = lastChild.lastChild;
       if (lastChild.nodeType === Node.TEXT_NODE)
         return [lastChild, (lastChild as HTMLElement).innerText.length];
-      return [node, 0];
+      return [lastChild, 0];
     }
     const display =
       node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as HTMLElement).display;
