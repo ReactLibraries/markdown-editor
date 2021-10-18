@@ -79,7 +79,7 @@ interface Props {
 Parameters to be used from dispatchLocalEvent
 
 ```ts
-export type MarkdownEvent =
+export declare type MarkdownEvent =
   | {
       type: "getPosition";
       payload: {
@@ -87,20 +87,40 @@ export type MarkdownEvent =
       };
     }
   | {
+      type: "getLine";
+      payload: {
+        onResult: (line: number, offset: number) => void;
+      };
+    }
+  | {
+      type: "getScrollLine";
+      payload: {
+        onResult: (line: number, offset: number) => void;
+      };
+    }
+  | {
       type: "setPosition";
-      payload: { start: number; end?: number };
+      payload: {
+        start: number;
+        end?: number;
+      };
     }
   | {
       type: "setFocus";
     }
   | {
       type: "setValue";
-      payload: { value: string };
+      payload: {
+        value: string;
+      };
     }
   | {
       type: "update";
-      //start&end:-1===text.length
-      payload: { start?: number; end?: number; value?: string };
+      payload: {
+        start?: number;
+        end?: number;
+        value?: string;
+      };
     }
   | {
       type: "redo";

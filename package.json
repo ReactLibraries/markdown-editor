@@ -1,7 +1,7 @@
 {
   "name": "@react-libraries/markdown-editor",
   "description": "Markdown editor for React",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
@@ -18,9 +18,9 @@
     "unified": "^10.1.0"
   },
   "devDependencies": {
-    "@types/react": "^17.0.29",
+    "@types/react": "^17.0.30",
     "@types/react-dom": "^17.0.9",
-    "eslint": "^8.0.0",
+    "eslint": "^8.0.1",
     "eslint-config-next": "^11.1.2",
     "eslint-config-prettier": "^8.3.0",
     "prettier": "^2.4.1",

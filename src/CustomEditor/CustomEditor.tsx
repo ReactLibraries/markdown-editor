@@ -3,7 +3,6 @@ import React, {
   CompositionEventHandler,
   DragEventHandler,
   FC,
-  FormEventHandler,
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
@@ -20,6 +19,18 @@ export type CustomEditorEvent =
       type: 'getPosition';
       payload: {
         onResult: (start: number, end: number) => void;
+      };
+    }
+  | {
+      type: 'getLine';
+      payload: {
+        onResult: (line: number, offset: number) => void;
+      };
+    }
+  | {
+      type: 'getScrollLine';
+      payload: {
+        onResult: (line: number, offset: number) => void;
       };
     }
   | {
@@ -269,6 +280,43 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       case 'getPosition':
         action.payload.onResult(...getPosition(refNode.current!));
         break;
+      case 'getLine':
+        {
+          const pos = getPosition(refNode.current!)[0];
+          let line = 1;
+          let offset = 0;
+          const text = property.text;
+          for (let i = 0; i < pos && i < text.length; i++) {
+            offset++;
+            if (text[i] === '\n') {
+              line++;
+              offset = 0;
+            }
+          }
+          action.payload.onResult(line, offset);
+        }
+        break;
+      case 'getScrollLine':
+        {
+          const node = findScrollTop(refNode.current!, refNode.current!.scrollTop);
+          if (node) {
+            const pos = getNodePositioin(refNode.current!, node, 0);
+            let line = 1;
+            let offset = 0;
+            const text = property.text;
+            for (let i = 0; i < pos && i < text.length; i++) {
+              offset++;
+              if (text[i] === '\n') {
+                line++;
+                offset = 0;
+              }
+            }
+            action.payload.onResult(line, offset);
+          } else {
+            action.payload.onResult(0, 0);
+          }
+        }
+        break;
       case 'setPosition':
         setPosition(refNode.current!, action.payload.start, action.payload.end);
         break;
@@ -324,6 +372,16 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     </>
   );
 };
+const findScrollTop = (node: HTMLElement, scrollTop: number) => {
+  if (node.offsetTop >= scrollTop) return node;
+  for (const child of node.childNodes) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const findNode = findScrollTop(child as HTMLElement, scrollTop) as HTMLElement;
+      if (findNode) return findNode;
+    }
+  }
+  return undefined;
+};
 const getNodeCount = (node: ReactNode) => {
   if (!node) return 0;
   let count = 1;
@@ -336,7 +394,8 @@ const getNodeCount = (node: ReactNode) => {
 };
 const cssClassName = 'markdown__fewjol87e89fhnao';
 const css =
-  `.${cssClassName}{outline: none;white-space: pre-wrap} ` + `.${cssClassName} *{display:inline;}`;
+  `.${cssClassName}{position:relative;outline: none;white-space: pre-wrap} ` +
+  `.${cssClassName} *{display:inline;}`;
 export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
   const selection = document.getSelection();
   if (!selection) return;
@@ -393,54 +452,52 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
     console.error(e);
   }
 };
+export const getNodePositioin = (
+  editor: HTMLElement,
+  targetNode: Node | null,
+  targetOffset: number
+) => {
+  const findNode = (node: Node | null) => {
+    if (!node) return [null, 0] as const;
+    const display =
+      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as Element).display;
+    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
+    if (display === 'none' || type === 'ignore') return [false, 0] as const;
+    if (node === targetNode && (!targetOffset || node.nodeType === Node.TEXT_NODE)) {
+      return [true, targetOffset] as const;
+    }
+    let count = 0;
+    for (let i = 0; i < (node === targetNode ? targetOffset : node.childNodes.length); i++) {
+      const [flag, length] = findNode(node.childNodes[i]);
+      count += length;
+      if (flag) return [true, count] as const;
+    }
+    if (node === targetNode) return [true, count] as const;
+    if (node.nodeType === Node.TEXT_NODE) {
+      count += node.textContent!.length;
+    } else {
+      if (node.nodeName === 'BR') {
+        count++;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (display === 'block') {
+          if (node.nextSibling) count++;
+        }
+      }
+    }
+    return [node === targetNode, count] as const;
+  };
+  const p = findNode(editor);
+  return p[0] ? p[1] : p[1] - 1;
+};
+
 export const getPosition = (editor: HTMLElement) => {
   const selection = document.getSelection();
   if (!selection) return [0, 0] as const;
-  const getPos = (end = true) => {
-    const [targetNode, targetOffset] = end
-      ? [selection.anchorNode, selection.anchorOffset]
-      : [selection.focusNode, selection.focusOffset];
-    const findNode = (node: Node) => {
-      const display =
-        node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as Element).display;
-      const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
-      if (display === 'none' || type === 'ignore') return [false, 0] as const;
-      if (
-        node === targetNode &&
-        (node !== editor || !targetOffset) &&
-        node.nodeType === Node.TEXT_NODE
-      ) {
-        return [true, targetOffset] as const;
-      }
-      let count = 0;
-
-      for (let i = 0; i < (node === targetNode ? targetOffset : node.childNodes.length); i++) {
-        const [flag, length] = findNode(node.childNodes[i]);
-        count += length;
-        if (flag) return [true, count] as const;
-      }
-      if (node === targetNode) return [true, count] as const;
-      if (node.nodeType === Node.TEXT_NODE) {
-        count += node.textContent!.length;
-      } else {
-        if (node.nodeName === 'BR') {
-          count++;
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          if (display === 'block') {
-            if (node.nextSibling) count++;
-          }
-        }
-      }
-      return [node === targetNode, count] as const;
-    };
-    const p = findNode(editor);
-    return p[0] ? p[1] : p[1] - 1;
-  };
-  const p = getPos(true);
+  const p = getNodePositioin(editor, selection.focusNode, selection.focusOffset);
   if (!selection.rangeCount) {
     return [p, p] as const;
   }
-  const p2 = getPos(false);
+  const p2 = getNodePositioin(editor, selection.anchorNode, selection.anchorOffset);
   return [Math.min(p, p2), Math.max(p, p2)] as const;
 };
 const getDragCaret = (e: React.DragEvent<HTMLDivElement>) => {
