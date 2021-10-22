@@ -35,7 +35,9 @@ const defaultComponents: MarkdownComponents = {
 const convertBreak = (value: string) =>
   value
     .split(/(\n)/g)
-    .map((v, index) => (index % 2 ? createElement('br', { key: index }) : v))
+    .map((v, index) =>
+      index % 2 ? createElement('br', { key: index }) : createElement('span', { key: index }, v)
+    )
     .filter((v) => v);
 
 function ReactCompiler(this: Processor, components?: MarkdownComponents) {

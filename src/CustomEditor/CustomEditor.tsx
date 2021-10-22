@@ -3,6 +3,7 @@ import React, {
   CompositionEventHandler,
   DragEventHandler,
   FC,
+  Fragment,
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
@@ -66,8 +67,15 @@ interface Props {
   onUpdate?: (value: string) => void;
   onCreateNode?: (value: string) => ReactNode;
 }
-
-const defaultProperty = {
+type Property = {
+  position: number;
+  dragText: string;
+  histories: [number, string][];
+  historyIndex: number;
+  text: string;
+  compositData?: string;
+};
+const defaultProperty: Property = {
   position: 0,
   dragText: '',
   histories: [],
@@ -89,7 +97,6 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   onUpdate,
   onCreateNode,
   onPaste,
-  onInput,
   onDragStart,
   onKeyDown,
   onDrop,
@@ -98,14 +105,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   ...props
 }) => {
   const refNode = useRef<HTMLDivElement>(null);
-  const property = useRef<{
-    position: number;
-    dragText: string;
-    histories: [number, string][];
-    historyIndex: number;
-    text: string;
-    compositData?: string;
-  }>(defaultProperty).current;
+  const property = useRef<Property>(defaultProperty).current;
   const [caret, setCaret] = useState(true);
   if (property.text === undefined) property.text = value || defaultValue || '';
   const [text, setText2] = useState(() => value || defaultValue || '');
@@ -114,7 +114,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     property.text = value;
   };
   if (value !== undefined && text !== value) setText(value);
-  const reactNode = useMemo(() => onCreateNode?.(text), [text]);
+  const reactNode = useMemo(() => onCreateNode?.(property.text), [property.text]);
   const pushText = (newText: string) => {
     property.histories.splice(property.historyIndex++);
     property.histories.push([property.position, text]);
@@ -194,11 +194,15 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     onCompositionEnd?.(e);
     const selection = getSelection()!;
     if (e.isDefaultPrevented()) return;
-    const range = document.createRange();
-    range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
-    range.setEnd(selection.focusNode!, selection.focusOffset);
-    range.deleteContents();
-    insertText(property.compositData);
+    try {
+      const range = document.createRange();
+      range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
+      range.setEnd(selection.focusNode!, selection.focusOffset);
+      range.deleteContents();
+      insertText(property.compositData);
+    } catch (e) {
+      //
+    }
   };
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (e) => {
     onPaste?.(e);
@@ -224,6 +228,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     sel.removeAllRanges();
     sel.addRange(range);
     deleteInsertText(t, p[0], p[1]);
+    property.position;
     e.preventDefault();
   };
   const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
@@ -335,14 +340,31 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     }
   });
   useEffect(() => {
-    setPosition(refNode.current!, property.position);
-    refNode.current!.focus();
+    const node = refNode.current!;
+    setPosition(node, property.position >= text.length ? -1 : property.position);
+    node.focus();
     setCaret(true);
+    const element = getSelection()?.focusNode as HTMLElement;
+    const target = element?.scrollIntoView !== undefined ? element : element.parentElement!;
+    const y1 = target.offsetTop;
+    const y2 = y1 + target.offsetHeight;
+    const clientY1 = node.scrollTop;
+    const clientY2 = clientY1 + node.clientHeight;
+    if (y2 > clientY2) {
+      node.scrollTo({
+        left: node.scrollLeft,
+        top: node.scrollTop + y2 - clientY2 + 1,
+        behavior: 'smooth',
+      });
+    }
   }, [reactNode]);
+
   typeof window !== 'undefined' &&
     useLayoutEffect(() => {
+      refNode.current!.blur();
       setCaret(false);
     }, [reactNode]);
+
   const handleKeyPress: KeyboardEventHandler<HTMLDivElement> = (e) => {
     insertText(e.key);
     e.preventDefault();
@@ -353,7 +375,6 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       <div
         style={{ caretColor: caret ? undefined : 'transparent', ...style }}
         className={cssClassName + (className ? ' ' + className : '')}
-        key={getNodeCount(reactNode)}
         ref={refNode}
         contentEditable
         spellCheck={false}
@@ -367,7 +388,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         suppressContentEditableWarning={true}
         {...props}
       >
-        {reactNode}
+        <Fragment key={getNodeCount(reactNode)}>{reactNode}</Fragment>
       </div>
     </>
   );
@@ -394,17 +415,19 @@ const getNodeCount = (node: ReactNode) => {
 };
 const cssClassName = 'markdown__fewjol87e89fhnao';
 const css =
-  `.${cssClassName}{position:relative;outline: none;white-space: pre-wrap} ` +
+  `.${cssClassName}{position:relative;outline:none;white-space:pre-wrap;overflow-y:auto;} ` +
   `.${cssClassName} *{display:inline;}`;
+
 export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
   const selection = document.getSelection();
   if (!selection) return;
-  const findNode = (node: Node, count: number): [Node | null, number] => {
+  const findNode = (node: Node, count: number, editable: boolean): [Node | null, number] => {
     if (count === -1) {
       let lastChild = node;
       while (lastChild.lastChild) lastChild = lastChild.lastChild;
-      if (lastChild.nodeType === Node.TEXT_NODE)
-        return [lastChild, (lastChild as HTMLElement).innerText.length];
+      if (lastChild.nodeType === Node.TEXT_NODE) {
+        return [lastChild, (lastChild as Text).length];
+      }
       return [lastChild, 0];
     }
     const display =
@@ -417,10 +440,16 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
       count -= node.textContent!.length;
     }
     if (count <= 0) {
-      return [node, (node.nodeType === Node.TEXT_NODE ? node.textContent!.length : 0) + count];
+      if (editable)
+        return [node, (node.nodeType === Node.TEXT_NODE ? node.textContent!.length : 0) + count];
+      return [null, count];
     }
     for (let i = 0; i < node.childNodes.length; i++) {
-      const [n, o] = findNode(node.childNodes[i], count);
+      const [n, o] = findNode(
+        node.childNodes[i],
+        count,
+        editable ? (node as HTMLElement).contentEditable !== 'false' : false
+      );
       if (n) return [n, o];
       count = o;
     }
@@ -431,11 +460,10 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
         if (node.nextSibling) count -= 1;
       }
     }
-
     return [null, count];
   };
-  const [targetNode, offset] = findNode(editor, startPos);
-  const [targetNode2, offset2] = end !== undefined ? findNode(editor, end) : [null, 0];
+  const [targetNode, offset] = findNode(editor, startPos, true);
+  const [targetNode2, offset2] = end !== undefined ? findNode(editor, end, true) : [null, 0];
   const range = document.createRange();
   try {
     if (targetNode) {
