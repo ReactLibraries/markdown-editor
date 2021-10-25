@@ -36,7 +36,9 @@ const convertBreak = (value: string) =>
   value
     .split(/(\n)/g)
     .map((v, index) =>
-      index % 2 ? createElement('br', { key: index }) : createElement('span', { key: index }, v)
+      index % 2
+        ? createElement('span', { key: index }, createElement('br', { key: index }))
+        : v && createElement('span', { key: index }, v)
     )
     .filter((v) => v);
 
@@ -89,9 +91,7 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
       nodeCount += nodes.length;
       return nodes.length ? nodes : null;
     };
-    const nodes = getNode(value.length);
-    if (!nodes) return;
-    return React.createElement('span', { key: nodeCount }, nodes);
+    return getNode(value.length);
   };
 
   const Compiler: Compiler = (tree: unist.Node & Partial<unist.Parent<unist.Node>>, value) => {

@@ -263,7 +263,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       case 'Delete':
         {
           const p = getPosition(refNode.current!);
-          deleteText(p[0], p[1] + 1);
+          deleteText(p[0], p[1] + (p[0] === p[1] ? 1 : 0));
           property.position = p[0];
           e.preventDefault();
         }
@@ -345,17 +345,19 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     node.focus();
     setCaret(true);
     const element = getSelection()?.focusNode as HTMLElement;
-    const target = element?.scrollIntoView !== undefined ? element : element.parentElement!;
-    const y1 = target.offsetTop;
-    const y2 = y1 + target.offsetHeight;
-    const clientY1 = node.scrollTop;
-    const clientY2 = clientY1 + node.clientHeight;
-    if (y2 > clientY2) {
-      node.scrollTo({
-        left: node.scrollLeft,
-        top: node.scrollTop + y2 - clientY2 + 1,
-        behavior: 'smooth',
-      });
+    if (refNode.current !== element) {
+      const target = element?.scrollIntoView !== undefined ? element : element.parentElement!;
+      const y1 = target.offsetTop;
+      const y2 = y1 + target.offsetHeight;
+      const clientY1 = node.scrollTop;
+      const clientY2 = clientY1 + node.clientHeight;
+      if (y2 > clientY2) {
+        node.scrollTo({
+          left: node.scrollLeft,
+          top: node.scrollTop + y2 - clientY2 + 8,
+          behavior: 'smooth',
+        });
+      }
     }
   }, [reactNode]);
 
@@ -380,6 +382,14 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         spellCheck={false}
         onPaste={handlePaste}
         onDragStart={handleDragStart}
+        onCut={(e) => {
+          const value = getSelection()?.toString() || '';
+          e.clipboardData.setData('text/plain', value);
+          const p = getPosition(refNode.current!);
+          deleteText(p[0], p[1]);
+          property.position = p[0];
+          e.preventDefault();
+        }}
         onDrop={handleDrop}
         onKeyPress={handleKeyPress}
         onKeyDown={handleKeyDown}
