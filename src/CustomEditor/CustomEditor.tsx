@@ -3,7 +3,6 @@ import React, {
   CompositionEventHandler,
   DragEventHandler,
   FC,
-  Fragment,
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
@@ -73,15 +72,23 @@ type Property = {
   histories: [number, string][];
   historyIndex: number;
   text: string;
+  composit?: boolean;
   compositData?: string;
+  compositIndex: number;
 };
 const defaultProperty: Property = {
   position: 0,
   dragText: '',
   histories: [],
   historyIndex: 0,
+  compositIndex: 0,
   text: undefined as never,
 };
+const cssClassName = 'markdown__fewjol87e89fhnao';
+const css =
+  `.${cssClassName}{position:relative;overflow-y:auto;} ` +
+  `.${cssClassName}>div{outline:none;white-space:pre-wrap;}` +
+  `.${cssClassName}>div *{display:inline;}`;
 
 /**
  * MarkdownEditor
@@ -193,16 +200,29 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   const handleCompositionEnd: CompositionEventHandler<HTMLDivElement> = (e) => {
     onCompositionEnd?.(e);
     const selection = getSelection()!;
-    if (e.isDefaultPrevented()) return;
+    if (e.isDefaultPrevented() || !property.compositData) return;
+    const safari = isSafari();
     try {
       const range = document.createRange();
-      range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
-      range.setEnd(selection.focusNode!, selection.focusOffset);
+      if (safari) {
+        range.setStart(selection.focusNode!, selection.focusOffset);
+        range.setEnd(
+          selection.focusNode!,
+          selection.focusOffset + property.compositData!.length - 1
+        );
+      } else {
+        range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
+        range.setEnd(selection.focusNode!, selection.focusOffset);
+      }
+
       range.deleteContents();
-      insertText(property.compositData);
     } catch (e) {
       //
     }
+    insertText(property.compositData);
+    property.compositData = undefined;
+    if (!safari) property.composit = false;
+    property.compositIndex++;
   };
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (e) => {
     onPaste?.(e);
@@ -233,7 +253,10 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   };
   const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
     onKeyDown?.(e);
-    if (e.isDefaultPrevented()) return;
+    if (e.isDefaultPrevented() || property.composit || e.nativeEvent.isComposing) {
+      if (e.key === 'Enter') property.composit = false;
+      return;
+    }
     switch (e.key) {
       case 'Tab': {
         insertText('\t');
@@ -345,7 +368,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     node.focus();
     setCaret(true);
     const element = getSelection()?.focusNode as HTMLElement;
-    if (refNode.current !== element) {
+    if (element && refNode.current !== element) {
       const target = element?.scrollIntoView !== undefined ? element : element.parentElement!;
       const y1 = target.offsetTop;
       const y2 = y1 + target.offsetHeight;
@@ -375,10 +398,9 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     <>
       <style>{css}</style>
       <div
-        style={{ caretColor: caret ? undefined : 'transparent', ...style }}
         className={cssClassName + (className ? ' ' + className : '')}
         ref={refNode}
-        contentEditable
+        style={{ caretColor: caret ? undefined : 'transparent', ...style }}
         spellCheck={false}
         onPaste={handlePaste}
         onDragStart={handleDragStart}
@@ -390,19 +412,29 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
           property.position = p[0];
           e.preventDefault();
         }}
+        onCompositionStart={() => {
+          property.composit = true;
+        }}
+        onBeforeInput={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onKeyPress={handleKeyPress}
         onKeyDown={handleKeyDown}
         onCompositionUpdate={handleCompositionUpdate}
         onCompositionEnd={handleCompositionEnd}
-        suppressContentEditableWarning={true}
         {...props}
       >
-        <Fragment key={getNodeCount(reactNode)}>{reactNode}</Fragment>
+        <div
+          key={getNodeCount(reactNode) + `${property.compositIndex}`}
+          contentEditable
+          suppressContentEditableWarning={true}
+        >
+          {reactNode}
+        </div>
       </div>
     </>
   );
 };
+
 const findScrollTop = (node: HTMLElement, scrollTop: number) => {
   if (node.offsetTop >= scrollTop) return node;
   for (const child of node.childNodes) {
@@ -413,7 +445,7 @@ const findScrollTop = (node: HTMLElement, scrollTop: number) => {
   }
   return undefined;
 };
-const getNodeCount = (node: ReactNode) => {
+export const getNodeCount = (node: ReactNode) => {
   if (!node) return 0;
   let count = 1;
   const children = typeof node === 'object' && 'props' in node && node.props.children;
@@ -423,11 +455,6 @@ const getNodeCount = (node: ReactNode) => {
     });
   return count;
 };
-const cssClassName = 'markdown__fewjol87e89fhnao';
-const css =
-  `.${cssClassName}{position:relative;outline:none;white-space:pre-wrap;overflow-y:auto;} ` +
-  `.${cssClassName} *{display:inline;}`;
-
 export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
   const selection = document.getSelection();
   if (!selection) return;
@@ -551,5 +578,9 @@ const getDragCaret = (e: React.DragEvent<HTMLDivElement>) => {
     };
     return [native.rangeParent, native.rangeOffset] as const;
   }
+};
+const isSafari = () => {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1 && ua.indexOf('edge') === -1;
 };
 export default true;

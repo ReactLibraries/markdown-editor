@@ -1,7 +1,7 @@
 {
   "name": "@react-libraries/markdown-editor",
   "description": "Markdown editor for React",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
