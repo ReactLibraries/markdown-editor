@@ -349,7 +349,10 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         setPosition(refNode.current!, action.payload.start, action.payload.end);
         break;
       case 'setFocus':
-        refNode.current!.focus();
+        {
+          const target = refNode.current!.childNodes[0] as HTMLDivElement;
+          target?.focus();
+        }
         break;
       case 'update':
         insertText(action.payload.value, action.payload.start, action.payload.end);
