@@ -3,6 +3,7 @@ import React, {
   CompositionEventHandler,
   DragEventHandler,
   FC,
+  FormEventHandler,
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
@@ -12,7 +13,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { LocalEvent, useLocalEvent, useLocalEventCreate } from '@react-libraries/use-local-event';
+import {
+  dispatchLocalEvent,
+  LocalEvent,
+  useLocalEvent,
+  useLocalEventCreate,
+} from '@react-libraries/use-local-event';
 
 export type CustomEditorEvent =
   | {
@@ -104,9 +110,13 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   onUpdate,
   onCreateNode,
   onPaste,
+  onClick,
   onDragStart,
   onKeyDown,
   onDrop,
+  onKeyPress,
+  onCut,
+  onCompositionStart,
   onCompositionUpdate,
   onCompositionEnd,
   ...props
@@ -239,9 +249,10 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   const handleDrop: DragEventHandler<HTMLDivElement> = (e) => {
     onDrop?.(e);
     if (e.isDefaultPrevented()) return;
+    const [node, offset] = getDragCaret(e);
+    if (!isEditableNode(node)) return;
     const p = getPosition(refNode.current!);
     const t = e.dataTransfer.getData('text/plain').replace(/\r\n/g, '\n');
-    const [node, offset] = getDragCaret(e);
     const range = document.createRange();
     range.setStart(node, offset);
     const sel = getSelection()!;
@@ -394,9 +405,37 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     }, [reactNode]);
 
   const handleKeyPress: KeyboardEventHandler<HTMLDivElement> = (e) => {
-    insertText(e.key);
+    onKeyPress?.(e);
+    if (e.isDefaultPrevented()) return;
+    if (e.key !== 'Enter') insertText(e.key);
     e.preventDefault();
   };
+  const handleClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (e.isDefaultPrevented()) return;
+    onClick?.(e);
+    if (e.target === refNode.current) {
+      if (event) {
+        dispatchLocalEvent(event, { type: 'setFocus' });
+        dispatchLocalEvent(event, { type: 'setPosition', payload: { start: -1 } });
+      }
+    }
+  };
+  const handleCut: ClipboardEventHandler<HTMLDivElement> = (e) => {
+    onCut?.(e);
+    if (e.isDefaultPrevented()) return;
+    const value = getSelection()?.toString() || '';
+    e.clipboardData.setData('text/plain', value);
+    const p = getPosition(refNode.current!);
+    deleteText(p[0], p[1]);
+    property.position = p[0];
+    e.preventDefault();
+  };
+  const handleCompositionStart: CompositionEventHandler<HTMLDivElement> = (e) => {
+    onCompositionStart?.(e);
+    if (e.isDefaultPrevented()) return;
+    property.composit = true;
+  };
+  const handleBeforeInput: FormEventHandler<HTMLDivElement> = (e) => e.preventDefault();
   return (
     <>
       <style>{css}</style>
@@ -407,23 +446,15 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         spellCheck={false}
         onPaste={handlePaste}
         onDragStart={handleDragStart}
-        onCut={(e) => {
-          const value = getSelection()?.toString() || '';
-          e.clipboardData.setData('text/plain', value);
-          const p = getPosition(refNode.current!);
-          deleteText(p[0], p[1]);
-          property.position = p[0];
-          e.preventDefault();
-        }}
-        onCompositionStart={() => {
-          property.composit = true;
-        }}
-        onBeforeInput={(e) => e.preventDefault()}
+        onCut={handleCut}
+        onCompositionStart={handleCompositionStart}
+        onBeforeInput={handleBeforeInput}
         onDrop={handleDrop}
         onKeyPress={handleKeyPress}
         onKeyDown={handleKeyDown}
         onCompositionUpdate={handleCompositionUpdate}
         onCompositionEnd={handleCompositionEnd}
+        onClick={handleClick}
         {...props}
       >
         <div
@@ -470,6 +501,17 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
       }
       return [lastChild, 0];
     }
+    if (count === 0) {
+      const findTextNode = (node: Node): Node | null => {
+        if (node.nodeType === Node.TEXT_NODE || node.nodeName === 'BR') return node;
+        for (const child of node.childNodes) {
+          const n = findTextNode(child);
+          if (n) return n;
+        }
+        return null;
+      };
+      return [findTextNode(node), 0];
+    }
     const display =
       node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as HTMLElement).display;
     const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
@@ -502,7 +544,8 @@ export const setPosition = (editor: HTMLElement, startPos: number, end?: number)
     }
     return [null, count];
   };
-  const [targetNode, offset] = findNode(editor, startPos, true);
+  let [targetNode, offset] = findNode(editor, startPos, true);
+  if (targetNode === null) [targetNode, offset] = findNode(editor, -1, true);
   const [targetNode2, offset2] = end !== undefined ? findNode(editor, end, true) : [null, 0];
   const range = document.createRange();
   try {
@@ -585,5 +628,9 @@ const getDragCaret = (e: React.DragEvent<HTMLDivElement>) => {
 const isSafari = () => {
   const ua = navigator.userAgent.toLowerCase();
   return ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1 && ua.indexOf('edge') === -1;
+};
+const isEditableNode = (node: Node) => {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+  return element?.isContentEditable === true;
 };
 export default true;
