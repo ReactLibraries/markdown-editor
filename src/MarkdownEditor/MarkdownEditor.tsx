@@ -1,4 +1,4 @@
-import React, { FC, HTMLAttributes, ReactElement, useMemo } from 'react';
+import React, { FC, HTMLAttributes, useMemo } from 'react';
 import { LocalEvent } from '@react-libraries/use-local-event';
 import { CustomEditor, CustomEditorEvent } from '../CustomEditor/CustomEditor.js';
 import { createProcesser, MarkdownComponents } from './MarkdownCompiler.js';

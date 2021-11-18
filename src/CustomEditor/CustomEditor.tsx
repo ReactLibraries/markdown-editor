@@ -124,7 +124,8 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   const refNode = useRef<HTMLDivElement>(null);
   const property = useRef<Property>(defaultProperty).current;
   const [caret, setCaret] = useState(true);
-  if (property.text === undefined) property.text = value || defaultValue || '';
+  if (value !== undefined && property.text !== value) property.text = value;
+  if (property.text === undefined) property.text = defaultValue || '';
   const [text, setText2] = useState(() => value || defaultValue || '');
   const setText = (value: string) => {
     setText2(value);
@@ -444,7 +445,6 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         ref={refNode}
         style={{ caretColor: caret ? undefined : 'transparent', ...style }}
         spellCheck={false}
-        onPaste={handlePaste}
         onDragStart={handleDragStart}
         onCut={handleCut}
         onCompositionStart={handleCompositionStart}
@@ -461,6 +461,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
           key={getNodeCount(reactNode) + `${property.compositIndex}`}
           contentEditable
           suppressContentEditableWarning={true}
+          onPaste={handlePaste}
         >
           {reactNode}
         </div>

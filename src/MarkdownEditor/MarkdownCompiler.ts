@@ -17,19 +17,19 @@ export type MarkdownComponents = {
 };
 
 const defaultComponents: MarkdownComponents = {
-  heading: ({ children, node, ...props }) => React.createElement('h' + node.depth, props, children),
-  strong: ({ children, node, ...props }) => React.createElement('strong', props, children),
-  emphasis: ({ children, node, ...props }) => React.createElement('em', props, children),
-  inlineCode: ({ children, node, ...props }) => React.createElement('em', props, children),
-  code: ({ children, node, ...props }) => React.createElement('code', props, children),
-  link: ({ children, node, ...props }) => React.createElement('span', props, children),
-  image: ({ children, node, ...props }) => React.createElement('span', props, children),
-  list: ({ children, node, ...props }) => React.createElement('span', props, children),
-  html: ({ children, node, ...props }) => React.createElement('span', props, children),
-  table: ({ children, node, ...props }) => React.createElement('code', props, children),
-  delete: ({ children, node, ...props }) => React.createElement('del', props, children),
-  paragraph: ({ children, node, ...props }) => React.createElement('p', props, children),
-  blockquote: ({ children, node, ...props }) => React.createElement('span', props, children),
+  heading: ({ children, node, ...props }) => createElement('h' + node.depth, props, children),
+  strong: ({ children, node, ...props }) => createElement('strong', props, children),
+  emphasis: ({ children, node, ...props }) => createElement('em', props, children),
+  inlineCode: ({ children, node, ...props }) => createElement('em', props, children),
+  code: ({ children, node, ...props }) => createElement('code', props, children),
+  link: ({ children, node, ...props }) => createElement('span', props, children),
+  image: ({ children, node, ...props }) => createElement('span', props, children),
+  list: ({ children, node, ...props }) => createElement('span', props, children),
+  html: ({ children, node, ...props }) => createElement('span', props, children),
+  table: ({ children, node, ...props }) => createElement('code', props, children),
+  delete: ({ children, node, ...props }) => createElement('del', props, children),
+  paragraph: ({ children, node, ...props }) => createElement('p', props, children),
+  blockquote: ({ children, node, ...props }) => createElement('span', props, children),
 };
 
 const convertBreak = (value: string) =>
