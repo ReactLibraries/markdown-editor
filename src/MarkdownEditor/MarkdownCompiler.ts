@@ -55,6 +55,10 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
       const nodes = [];
       while (position < limit && index < vnodes.length) {
         const vnode = vnodes[index];
+        if (!vnode.position) {
+          index++;
+          continue;
+        }
         const [start, end] = [vnode.position!.start.offset!, vnode.position!.end.offset!];
         if (start > limit) {
           nodes.push(convertBreak(value.substring(position, limit)));

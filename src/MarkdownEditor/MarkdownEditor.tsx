@@ -3,8 +3,10 @@ import { LocalEvent } from '@react-libraries/use-local-event';
 import { CustomEditor, CustomEditorEvent } from '../CustomEditor/CustomEditor.js';
 import { createProcesser, MarkdownComponents } from './MarkdownCompiler.js';
 
+export type MarkdownEvent = LocalEvent<CustomEditorEvent>;
+
 interface Props {
-  event?: LocalEvent<CustomEditorEvent>;
+  event?: MarkdownEvent;
   defaultValue?: string;
   value?: string;
   onUpdate?: (value: string) => void;
