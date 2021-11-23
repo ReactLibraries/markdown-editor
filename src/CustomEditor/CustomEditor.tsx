@@ -22,44 +22,44 @@ import {
 
 export type CustomEditorEvent =
   | {
-      type: 'getPosition';
-      payload: {
-        onResult: (start: number, end: number) => void;
-      };
-    }
-  | {
-      type: 'getLine';
-      payload: {
-        onResult: (line: number, offset: number) => void;
-      };
-    }
-  | {
-      type: 'getScrollLine';
-      payload: {
-        onResult: (line: number, offset: number) => void;
-      };
-    }
-  | {
-      type: 'setPosition';
-      payload: { start: number; end?: number };
-    }
-  | {
-      type: 'setFocus';
-    }
-  | {
-      type: 'setValue';
-      payload: { value: string };
-    }
-  | {
-      type: 'update';
-      payload: { start?: number; end?: number; value?: string };
-    }
-  | {
-      type: 'redo';
-    }
-  | {
-      type: 'undo';
+    type: 'getPosition';
+    payload: {
+      onResult: (start: number, end: number) => void;
     };
+  }
+  | {
+    type: 'getLine';
+    payload: {
+      onResult: (line: number, offset: number) => void;
+    };
+  }
+  | {
+    type: 'getScrollLine';
+    payload: {
+      onResult: (line: number, offset: number) => void;
+    };
+  }
+  | {
+    type: 'setPosition';
+    payload: { start: number; end?: number };
+  }
+  | {
+    type: 'setFocus';
+  }
+  | {
+    type: 'setValue';
+    payload: { value: string };
+  }
+  | {
+    type: 'update';
+    payload: { start?: number; end?: number; value?: string };
+  }
+  | {
+    type: 'redo';
+  }
+  | {
+    type: 'undo';
+  };
 
 export const useCustomEditor = () => {
   return useLocalEventCreate<CustomEditorEvent>();
@@ -95,6 +95,172 @@ const css =
   `.${cssClassName}{position:relative;overflow-y:auto;} ` +
   `.${cssClassName}>div{outline:none;white-space:pre-wrap;}` +
   `.${cssClassName}>div *{display:inline;}`;
+
+const findScrollTop = (node: HTMLElement, scrollTop: number) => {
+  if (node.offsetTop >= scrollTop) return node;
+  for (const child of node.childNodes) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const findNode = findScrollTop(child as HTMLElement, scrollTop) as HTMLElement;
+      if (findNode) return findNode;
+    }
+  }
+  return undefined;
+};
+export const getNodeCount = (node: ReactNode) => {
+  if (!node) return 0;
+  let count = 1;
+  const children = typeof node === 'object' && 'props' in node && node.props.children;
+  children &&
+    React.Children.toArray(children).forEach((children) => {
+      count += getNodeCount(children);
+    });
+  return count;
+};
+export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
+  const selection = document.getSelection();
+  if (!selection) return;
+  const findNode = (node: Node, count: number, editable: boolean): [Node | null, number] => {
+    if (count === -1) {
+      let lastChild = node;
+      while (lastChild.lastChild) lastChild = lastChild.lastChild;
+      if (lastChild.nodeType === Node.TEXT_NODE) {
+        return [lastChild, (lastChild as Text).length];
+      }
+      return [lastChild, 0];
+    }
+    if (count === 0) {
+      const findTextNode = (node: Node): Node | null => {
+        if (node.nodeType === Node.TEXT_NODE || node.nodeName === 'BR') return node;
+        for (const child of node.childNodes) {
+          const n = findTextNode(child);
+          if (n) return n;
+        }
+        return null;
+      };
+      return [findTextNode(node), 0];
+    }
+    const display =
+      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as HTMLElement).display;
+    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
+
+    if (display === 'none' || type === 'ignore') return [null, count];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      count -= node.textContent!.length;
+    }
+    if (count <= 0) {
+      if (editable)
+        return [node, (node.nodeType === Node.TEXT_NODE ? node.textContent!.length : 0) + count];
+      return [null, count];
+    }
+    for (let i = 0; i < node.childNodes.length; i++) {
+      const [n, o] = findNode(
+        node.childNodes[i],
+        count,
+        editable ? (node as HTMLElement).contentEditable !== 'false' : false
+      );
+      if (n) return [n, o];
+      count = o;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE && editor !== node) {
+      if (node.nodeName === 'BR') {
+        count -= 1;
+      } else if (getComputedStyle(node as Element).display === 'block') {
+        if (node.nextSibling) count -= 1;
+      }
+    }
+    return [null, count];
+  };
+  let [targetNode, offset] = findNode(editor, startPos, true);
+  if (targetNode === null) [targetNode, offset] = findNode(editor, -1, true);
+  const [targetNode2, offset2] = end !== undefined ? findNode(editor, end, true) : [null, 0];
+  const range = document.createRange();
+  try {
+    if (targetNode) {
+      range.setStart(targetNode, offset);
+      if (targetNode2) range.setEnd(targetNode2, offset2);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      range.setStart(editor, 0);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+};
+export const getNodePositioin = (
+  editor: HTMLElement,
+  targetNode: Node | null,
+  targetOffset: number
+) => {
+  const findNode = (node: Node | null) => {
+    if (!node) return [null, 0] as const;
+    const display =
+      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as Element).display;
+    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
+    if (display === 'none' || type === 'ignore') return [false, 0] as const;
+    if (node === targetNode && (!targetOffset || node.nodeType === Node.TEXT_NODE)) {
+      return [true, targetOffset] as const;
+    }
+    let count = 0;
+    for (let i = 0; i < (node === targetNode ? targetOffset : node.childNodes.length); i++) {
+      const [flag, length] = findNode(node.childNodes[i]);
+      count += length;
+      if (flag) return [true, count] as const;
+    }
+    if (node === targetNode) return [true, count] as const;
+    if (node.nodeType === Node.TEXT_NODE) {
+      count += node.textContent!.length;
+    } else {
+      if (node.nodeName === 'BR') {
+        count++;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (display === 'block') {
+          if (node.nextSibling) count++;
+        }
+      }
+    }
+    return [node === targetNode, count] as const;
+  };
+  const p = findNode(editor);
+  return p[0] ? p[1] : p[1] - 1;
+};
+
+export const getPosition = (editor: HTMLElement) => {
+  const selection = document.getSelection();
+  if (!selection) return [0, 0] as const;
+  const p = getNodePositioin(editor, selection.focusNode, selection.focusOffset);
+  if (!selection.rangeCount) {
+    return [p, p] as const;
+  }
+  const p2 = getNodePositioin(editor, selection.anchorNode, selection.anchorOffset);
+  return [Math.min(p, p2), Math.max(p, p2)] as const;
+};
+const getDragCaret = (e: React.DragEvent<HTMLDivElement>) => {
+  if (document.caretRangeFromPoint) {
+    const x = e.clientX;
+    const y = e.clientY;
+    const range = document.caretRangeFromPoint(x, y)!;
+    return [range.startContainer, range.startOffset] as const;
+  } else {
+    const native = e.nativeEvent as typeof e.nativeEvent & {
+      rangeParent: Node;
+      rangeOffset: number;
+    };
+    return [native.rangeParent, native.rangeOffset] as const;
+  }
+};
+const isSafari = () => {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1 && ua.indexOf('edge') === -1;
+};
+const isEditableNode = (node: Node) => {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+  return element?.isContentEditable === true;
+};
+
 
 /**
  * MarkdownEditor
@@ -177,8 +343,8 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
           ? property.text.length
           : end
         : start !== undefined
-        ? startPos
-        : pos[1];
+          ? startPos
+          : pos[1];
     pushText(currentText.slice(0, startPos) + (text || '') + currentText.slice(endPos));
     property.position = startPos + (text?.length || 0);
   };
@@ -437,9 +603,11 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     property.composit = true;
   };
   const handleBeforeInput: FormEventHandler<HTMLDivElement> = (e) => e.preventDefault();
+  const styleCss = useMemo(() => <style dangerouslySetInnerHTML={{ __html: css }} />
+    , [])
   return (
     <>
-      <style>{css}</style>
+      {styleCss}
       <div
         className={cssClassName + (className ? ' ' + className : '')}
         ref={refNode}
@@ -470,168 +638,4 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   );
 };
 
-const findScrollTop = (node: HTMLElement, scrollTop: number) => {
-  if (node.offsetTop >= scrollTop) return node;
-  for (const child of node.childNodes) {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const findNode = findScrollTop(child as HTMLElement, scrollTop) as HTMLElement;
-      if (findNode) return findNode;
-    }
-  }
-  return undefined;
-};
-export const getNodeCount = (node: ReactNode) => {
-  if (!node) return 0;
-  let count = 1;
-  const children = typeof node === 'object' && 'props' in node && node.props.children;
-  children &&
-    React.Children.toArray(children).forEach((children) => {
-      count += getNodeCount(children);
-    });
-  return count;
-};
-export const setPosition = (editor: HTMLElement, startPos: number, end?: number) => {
-  const selection = document.getSelection();
-  if (!selection) return;
-  const findNode = (node: Node, count: number, editable: boolean): [Node | null, number] => {
-    if (count === -1) {
-      let lastChild = node;
-      while (lastChild.lastChild) lastChild = lastChild.lastChild;
-      if (lastChild.nodeType === Node.TEXT_NODE) {
-        return [lastChild, (lastChild as Text).length];
-      }
-      return [lastChild, 0];
-    }
-    if (count === 0) {
-      const findTextNode = (node: Node): Node | null => {
-        if (node.nodeType === Node.TEXT_NODE || node.nodeName === 'BR') return node;
-        for (const child of node.childNodes) {
-          const n = findTextNode(child);
-          if (n) return n;
-        }
-        return null;
-      };
-      return [findTextNode(node), 0];
-    }
-    const display =
-      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as HTMLElement).display;
-    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
-
-    if (display === 'none' || type === 'ignore') return [null, count];
-
-    if (node.nodeType === Node.TEXT_NODE) {
-      count -= node.textContent!.length;
-    }
-    if (count <= 0) {
-      if (editable)
-        return [node, (node.nodeType === Node.TEXT_NODE ? node.textContent!.length : 0) + count];
-      return [null, count];
-    }
-    for (let i = 0; i < node.childNodes.length; i++) {
-      const [n, o] = findNode(
-        node.childNodes[i],
-        count,
-        editable ? (node as HTMLElement).contentEditable !== 'false' : false
-      );
-      if (n) return [n, o];
-      count = o;
-    }
-    if (node.nodeType === Node.ELEMENT_NODE && editor !== node) {
-      if (node.nodeName === 'BR') {
-        count -= 1;
-      } else if (getComputedStyle(node as Element).display === 'block') {
-        if (node.nextSibling) count -= 1;
-      }
-    }
-    return [null, count];
-  };
-  let [targetNode, offset] = findNode(editor, startPos, true);
-  if (targetNode === null) [targetNode, offset] = findNode(editor, -1, true);
-  const [targetNode2, offset2] = end !== undefined ? findNode(editor, end, true) : [null, 0];
-  const range = document.createRange();
-  try {
-    if (targetNode) {
-      range.setStart(targetNode, offset);
-      if (targetNode2) range.setEnd(targetNode2, offset2);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
-      range.setStart(editor, 0);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  } catch (e) {
-    console.error(e);
-  }
-};
-export const getNodePositioin = (
-  editor: HTMLElement,
-  targetNode: Node | null,
-  targetOffset: number
-) => {
-  const findNode = (node: Node | null) => {
-    if (!node) return [null, 0] as const;
-    const display =
-      node.nodeType === Node.ELEMENT_NODE && getComputedStyle(node as Element).display;
-    const type = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.type;
-    if (display === 'none' || type === 'ignore') return [false, 0] as const;
-    if (node === targetNode && (!targetOffset || node.nodeType === Node.TEXT_NODE)) {
-      return [true, targetOffset] as const;
-    }
-    let count = 0;
-    for (let i = 0; i < (node === targetNode ? targetOffset : node.childNodes.length); i++) {
-      const [flag, length] = findNode(node.childNodes[i]);
-      count += length;
-      if (flag) return [true, count] as const;
-    }
-    if (node === targetNode) return [true, count] as const;
-    if (node.nodeType === Node.TEXT_NODE) {
-      count += node.textContent!.length;
-    } else {
-      if (node.nodeName === 'BR') {
-        count++;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        if (display === 'block') {
-          if (node.nextSibling) count++;
-        }
-      }
-    }
-    return [node === targetNode, count] as const;
-  };
-  const p = findNode(editor);
-  return p[0] ? p[1] : p[1] - 1;
-};
-
-export const getPosition = (editor: HTMLElement) => {
-  const selection = document.getSelection();
-  if (!selection) return [0, 0] as const;
-  const p = getNodePositioin(editor, selection.focusNode, selection.focusOffset);
-  if (!selection.rangeCount) {
-    return [p, p] as const;
-  }
-  const p2 = getNodePositioin(editor, selection.anchorNode, selection.anchorOffset);
-  return [Math.min(p, p2), Math.max(p, p2)] as const;
-};
-const getDragCaret = (e: React.DragEvent<HTMLDivElement>) => {
-  if (document.caretRangeFromPoint) {
-    const x = e.clientX;
-    const y = e.clientY;
-    const range = document.caretRangeFromPoint(x, y)!;
-    return [range.startContainer, range.startOffset] as const;
-  } else {
-    const native = e.nativeEvent as typeof e.nativeEvent & {
-      rangeParent: Node;
-      rangeOffset: number;
-    };
-    return [native.rangeParent, native.rangeOffset] as const;
-  }
-};
-const isSafari = () => {
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1 && ua.indexOf('edge') === -1;
-};
-const isEditableNode = (node: Node) => {
-  const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
-  return element?.isContentEditable === true;
-};
 export default true;

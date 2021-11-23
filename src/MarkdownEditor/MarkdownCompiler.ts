@@ -38,7 +38,7 @@ const convertBreak = (value: string) =>
     .map((v, index) =>
       index % 2
         ? createElement('span', { key: index }, createElement('br', { key: index }))
-        : v && createElement('span', { key: index }, v)
+        : v && createElement('span', { key: `${index}-${v.length}` }, v)
     )
     .filter((v) => v);
 
@@ -109,7 +109,7 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
   this.Compiler = Compiler;
 }
 export const createProcesser = (option?: MarkdownComponents) => {
-  return unified().use(remarkParse).use(remarkGfm).use(ReactCompiler, option) as Processor<
+  return unified().use(remarkParse as never).use(remarkGfm).use(ReactCompiler, option) as Processor<
     Root,
     Root,
     Root,
