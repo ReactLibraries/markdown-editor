@@ -545,7 +545,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   });
   useEffect(() => {
     const node = refNode.current!;
-    setPosition(node, property.position >= text.length ? -1 : property.position);
+    setPosition(node, property.position >= property.text.length ? -1 : property.position);
     node.focus();
     setCaret(true);
     const element = getSelection()?.focusNode as HTMLElement;
@@ -563,9 +563,10 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
         });
       }
     }
-  }, [reactNode]);
+  }, [property, reactNode]);
 
   typeof window !== 'undefined' &&
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useLayoutEffect(() => {
       refNode.current!.blur();
       setCaret(false);
