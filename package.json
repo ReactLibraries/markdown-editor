@@ -1,12 +1,12 @@
 {
   "name": "@react-libraries/markdown-editor",
   "description": "Markdown editor for React",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
     "build": "tsc -b",
-    "build:test": "tsc -b && xcopy  /y /s dist\\*.* \\prog\\test\\next-markdown\\node_modules\\@react-libraries\\markdown-editor\\dist",
+    "build:test": "tsc -b && xcopy  /y /s dist\\*.* \\prog\\test\\next-markdown\\src\\libs\\@react-libraries\\markdown-editor\\dist",
     "lint:fix": "eslint --fix && prettier -w src"
   },
   "dependencies": {

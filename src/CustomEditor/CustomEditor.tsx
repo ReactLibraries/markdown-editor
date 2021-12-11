@@ -7,6 +7,7 @@ import React, {
   HTMLAttributes,
   KeyboardEventHandler,
   ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -277,9 +278,9 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   onPaste,
   onClick,
   onDragStart,
-  onKeyDown,
+  onKeyDownCapture,
+  onKeyPressCapture,
   onDrop,
-  onKeyPress,
   onCut,
   onCompositionStart,
   onCompositionUpdate,
@@ -292,23 +293,29 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   if (value !== undefined && property.text !== value) property.text = value;
   if (property.text === undefined) property.text = defaultValue || '';
   const [text, setText2] = useState(() => value || defaultValue || '');
-  const setText = (value: string) => {
-    setText2(value);
-    property.text = value;
-  };
+  const setText = useCallback(
+    (value: string) => {
+      setText2(value);
+      property.text = value;
+    },
+    [property]
+  );
   if (value !== undefined && text !== value) setText(value);
-  const reactNode = useMemo(() => onCreateNode?.(property.text), [property.text]);
-  const pushText = (newText: string) => {
-    property.histories.splice(property.historyIndex++);
-    property.histories.push([property.position, text]);
-    if (value === undefined) setText(newText);
-    onUpdate?.(newText);
-  };
-  const undoText = () => {
+  const reactNode = useMemo(() => onCreateNode?.(property.text), [onCreateNode, property.text]);
+  const pushText = useCallback(
+    (newText: string) => {
+      property.histories.splice(property.historyIndex++);
+      property.histories.push([property.position, property.text]);
+      if (value === undefined) setText(newText);
+      onUpdate?.(newText);
+    },
+    [onUpdate, property, setText, value]
+  );
+  const undoText = useCallback(() => {
     if (property.historyIndex) {
       if (property.historyIndex >= property.histories.length)
-        property.histories.push([property.position, text]);
-      else property.histories[property.historyIndex] = [property.position, text];
+        property.histories.push([property.position, property.text]);
+      else property.histories[property.historyIndex] = [property.position, property.text];
       const newText = property.histories[--property.historyIndex];
       if (newText) {
         property.position = newText[0];
@@ -318,8 +325,8 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       return newText;
     }
     return undefined;
-  };
-  const redoText = () => {
+  }, [onUpdate, property, setText]);
+  const redoText = useCallback(() => {
     if (property.historyIndex < property.histories.length - 1) {
       const newText = property.histories[++property.historyIndex];
       if (newText) {
@@ -330,157 +337,54 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       return newText;
     }
     return undefined;
-  };
-  const insertText = (text?: string, start?: number, end?: number) => {
-    const pos = getPosition(refNode.current!);
-    const currentText = property.text;
-    const startPos =
-      start !== undefined ? (start === -1 ? property.text.length + 1 : start) : pos[0];
-    const endPos =
-      end !== undefined
-        ? end === -1
-          ? property.text.length
-          : end
-        : start !== undefined
-        ? startPos
-        : pos[1];
-    pushText(currentText.slice(0, startPos) + (text || '') + currentText.slice(endPos));
-    property.position = startPos + (text?.length || 0);
-  };
-  const deleteInsertText = (text: string, start: number, end: number) => {
-    const pos = getPosition(refNode.current!);
-    const currentText = property.text;
-    if (pos[0] < start) {
-      const currentText2 = currentText.slice(0, start) + currentText.slice(end, currentText.length);
-      pushText(
-        currentText2.slice(0, pos[0]) + text + currentText2.slice(pos[1], currentText2.length)
-      );
-      property.position = pos[0] + text.length;
-    } else {
-      const currentText2 =
-        currentText.slice(0, pos[0]) + text + currentText.slice(pos[1], currentText.length);
-      pushText(currentText2.slice(0, start) + currentText2.slice(end, currentText2.length));
-      property.position = pos[0] + text.length + start - end;
-    }
-  };
-  const deleteText = (start: number, end: number) => {
-    const currentText = property.text;
-    const text = currentText.slice(0, start) + currentText.slice(end, currentText.length);
-    pushText(text);
-  };
-  const handleCompositionUpdate: CompositionEventHandler<HTMLDivElement> = (e) => {
-    onCompositionUpdate?.(e);
-    if (e.isDefaultPrevented()) return;
-    property.compositData = e.data;
-  };
-  const handleCompositionEnd: CompositionEventHandler<HTMLDivElement> = (e) => {
-    onCompositionEnd?.(e);
-    const selection = getSelection()!;
-    if (e.isDefaultPrevented() || !property.compositData) return;
-    const safari = isSafari();
-    try {
-      const range = document.createRange();
-      if (safari) {
-        range.setStart(selection.focusNode!, selection.focusOffset);
-        range.setEnd(
-          selection.focusNode!,
-          selection.focusOffset + property.compositData!.length - 1
+  }, [onUpdate, property, setText]);
+  const insertText = useCallback(
+    (text?: string, start?: number, end?: number) => {
+      const pos = getPosition(refNode.current!);
+      const currentText = property.text;
+      const startPos =
+        start !== undefined ? (start === -1 ? property.text.length + 1 : start) : pos[0];
+      const endPos =
+        end !== undefined
+          ? end === -1
+            ? property.text.length
+            : end
+          : start !== undefined
+          ? startPos
+          : pos[1];
+      pushText(currentText.slice(0, startPos) + (text || '') + currentText.slice(endPos));
+      property.position = startPos + (text?.length || 0);
+    },
+    [property, pushText]
+  );
+  const deleteInsertText = useCallback(
+    (text: string, start: number, end: number) => {
+      const pos = getPosition(refNode.current!);
+      const currentText = property.text;
+      if (pos[0] < start) {
+        const currentText2 =
+          currentText.slice(0, start) + currentText.slice(end, currentText.length);
+        pushText(
+          currentText2.slice(0, pos[0]) + text + currentText2.slice(pos[1], currentText2.length)
         );
+        property.position = pos[0] + text.length;
       } else {
-        range.setStart(selection.focusNode!, selection.focusOffset - property.compositData!.length);
-        range.setEnd(selection.focusNode!, selection.focusOffset);
+        const currentText2 =
+          currentText.slice(0, pos[0]) + text + currentText.slice(pos[1], currentText.length);
+        pushText(currentText2.slice(0, start) + currentText2.slice(end, currentText2.length));
+        property.position = pos[0] + text.length + start - end;
       }
-
-      range.deleteContents();
-    } catch (e) {
-      //
-    }
-    insertText(property.compositData);
-    property.compositData = undefined;
-    if (!safari) property.composit = false;
-    property.compositIndex++;
-  };
-  const handlePaste: ClipboardEventHandler<HTMLDivElement> = (e) => {
-    onPaste?.(e);
-    if (e.isDefaultPrevented()) return;
-    const t = e.clipboardData.getData('text/plain').replace(/\r\n/g, '\n');
-    insertText(t);
-    e.preventDefault();
-  };
-  const handleDragStart: DragEventHandler<HTMLDivElement> = (e) => {
-    onDragStart?.(e);
-    if (e.isDefaultPrevented()) return;
-    property.dragText = e.dataTransfer.getData('text/plain');
-  };
-  const handleDrop: DragEventHandler<HTMLDivElement> = (e) => {
-    onDrop?.(e);
-    if (e.isDefaultPrevented()) return;
-    const [node, offset] = getDragCaret(e);
-    if (!isEditableNode(node)) return;
-    const p = getPosition(refNode.current!);
-    const t = e.dataTransfer.getData('text/plain').replace(/\r\n/g, '\n');
-    const range = document.createRange();
-    range.setStart(node, offset);
-    const sel = getSelection()!;
-    sel.removeAllRanges();
-    sel.addRange(range);
-    deleteInsertText(t, p[0], p[1]);
-    property.position;
-    e.preventDefault();
-  };
-  const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
-    onKeyDown?.(e);
-    if (e.isDefaultPrevented() || property.composit || e.nativeEvent.isComposing) {
-      if (e.key === 'Enter') property.composit = false;
-      e.stopPropagation();
-      return;
-    }
-    switch (e.key) {
-      case 'Tab': {
-        insertText('\t');
-        e.preventDefault();
-        break;
-      }
-      case 'Enter':
-        {
-          const p = getPosition(refNode.current!);
-          if (p[0] === property.text.length) {
-            insertText('\n\n');
-            property.position--;
-          } else insertText('\n');
-          e.preventDefault();
-        }
-        break;
-      case 'Backspace':
-        {
-          const p = getPosition(refNode.current!);
-          const start = Math.max(p[0] - 1, 0);
-          const end = Math.min(p[1], property.text.length);
-          deleteText(start, end);
-          property.position = start;
-          e.preventDefault();
-        }
-        break;
-      case 'Delete':
-        {
-          const p = getPosition(refNode.current!);
-          deleteText(p[0], p[1] + (p[0] === p[1] ? 1 : 0));
-          property.position = p[0];
-          e.preventDefault();
-        }
-        break;
-      case 'z':
-        if (e.ctrlKey && !e.shiftKey) {
-          undoText();
-        }
-        break;
-      case 'y':
-        if (e.ctrlKey && !e.shiftKey) {
-          redoText();
-        }
-        break;
-    }
-  };
+    },
+    [property, pushText]
+  );
+  const deleteText = useCallback(
+    (start: number, end: number) => {
+      const currentText = property.text;
+      const text = currentText.slice(0, start) + currentText.slice(end, currentText.length);
+      pushText(text);
+    },
+    [property.text, pushText]
+  );
   useLocalEvent(event, (action) => {
     switch (action.type) {
       case 'getPosition':
@@ -550,7 +454,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     setCaret(true);
     const element = getSelection()?.focusNode as HTMLElement;
     if (element && refNode.current !== element) {
-      const target = element?.scrollIntoView !== undefined ? element : element.parentElement!;
+      const target = element.parentElement!;
       const y1 = target.offsetTop;
       const y2 = y1 + target.offsetHeight;
       const clientY1 = node.scrollTop;
@@ -571,63 +475,229 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
       refNode.current!.blur();
       setCaret(false);
     }, [reactNode]);
-
-  const handleKeyPress: KeyboardEventHandler<HTMLDivElement> = (e) => {
-    onKeyPress?.(e);
-    if (e.isDefaultPrevented()) return;
-    if (e.key !== 'Enter') insertText(e.key);
+  const handleSelect = useCallback(() => {
+    const p = getPosition(refNode.current!);
+    property.position = p[0];
+  }, [property]);
+  const handlePaste: ClipboardEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onPaste?.(e);
+      if (e.isDefaultPrevented()) return;
+      const t = e.clipboardData.getData('text/plain').replace(/\r\n/g, '\n');
+      insertText(t);
+      e.preventDefault();
+    },
+    [insertText, onPaste]
+  );
+  const handleDragStart: DragEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onDragStart?.(e);
+      if (e.isDefaultPrevented()) return;
+      property.dragText = e.dataTransfer.getData('text/plain');
+    },
+    [onDragStart, property]
+  );
+  const handleDrop: DragEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onDrop?.(e);
+      if (e.isDefaultPrevented()) return;
+      const [node, offset] = getDragCaret(e);
+      if (!isEditableNode(node)) return;
+      const p = getPosition(refNode.current!);
+      const t = e.dataTransfer.getData('text/plain').replace(/\r\n/g, '\n');
+      const range = document.createRange();
+      range.setStart(node, offset);
+      const sel = getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      deleteInsertText(t, p[0], p[1]);
+      property.position;
+      e.preventDefault();
+    },
+    [deleteInsertText, onDrop, property]
+  );
+  const handleKeyPressCapture: KeyboardEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onKeyPressCapture?.(e);
+      if (e.isDefaultPrevented()) return;
+      if (e.key !== 'Enter') insertText(e.key);
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [insertText, onKeyPressCapture]
+  );
+  const handleKeyDownCapture: KeyboardEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onKeyDownCapture?.(e);
+      if (e.isDefaultPrevented() || property.composit || e.nativeEvent.isComposing) {
+        if (e.key === 'Enter') property.composit = false;
+        e.stopPropagation();
+        return;
+      }
+      switch (e.key) {
+        case 'Tab': {
+          insertText('\t');
+          e.preventDefault();
+          break;
+        }
+        case 'Enter':
+          {
+            const p = getPosition(refNode.current!);
+            if (p[0] === property.text.length) {
+              insertText('\n\n');
+              property.position--;
+            } else insertText('\n');
+            e.preventDefault();
+          }
+          break;
+        case 'Backspace':
+          {
+            const p = getPosition(refNode.current!);
+            const start = Math.max(p[0] - 1, 0);
+            const end = Math.min(p[1], property.text.length);
+            deleteText(start, end);
+            property.position = start;
+            e.preventDefault();
+          }
+          break;
+        case 'Delete':
+          {
+            const p = getPosition(refNode.current!);
+            deleteText(p[0], p[1] + (p[0] === p[1] ? 1 : 0));
+            property.position = p[0];
+            e.preventDefault();
+          }
+          break;
+        case 'z':
+          if (e.ctrlKey && !e.shiftKey) {
+            undoText();
+          }
+          break;
+        case 'y':
+          if (e.ctrlKey && !e.shiftKey) {
+            redoText();
+          }
+          break;
+      }
+    },
+    [deleteText, insertText, onKeyDownCapture, property, redoText, undoText]
+  );
+  const handleClick: React.MouseEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      if (e.isDefaultPrevented()) return;
+      onClick?.(e);
+      if (e.target === refNode.current) {
+        if (event) {
+          dispatchLocalEvent(event, { type: 'setFocus' });
+          dispatchLocalEvent(event, { type: 'setPosition', payload: { start: -1 } });
+        }
+      }
+    },
+    [event, onClick]
+  );
+  const handleCut: ClipboardEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onCut?.(e);
+      if (e.isDefaultPrevented()) return;
+      const value = getSelection()?.toString() || '';
+      e.clipboardData.setData('text/plain', value);
+      const p = getPosition(refNode.current!);
+      deleteText(p[0], p[1]);
+      property.position = p[0];
+      e.preventDefault();
+    },
+    [deleteText, onCut, property]
+  );
+  const handleBeforeInputCapture: FormEventHandler<HTMLDivElement> = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-  };
-  const handleClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    if (e.isDefaultPrevented()) return;
-    onClick?.(e);
-    if (e.target === refNode.current) {
-      if (event) {
-        dispatchLocalEvent(event, { type: 'setFocus' });
-        dispatchLocalEvent(event, { type: 'setPosition', payload: { start: -1 } });
+  }, []);
+  const handleCompositionStart: CompositionEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onCompositionStart?.(e);
+      if (e.isDefaultPrevented()) return;
+      property.composit = true;
+    },
+    [onCompositionStart, property]
+  );
+  const handleCompositionUpdate: CompositionEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onCompositionUpdate?.(e);
+      if (e.isDefaultPrevented()) return;
+      property.compositData = e.data;
+    },
+    [onCompositionUpdate, property]
+  );
+  const handleCompositionEnd: CompositionEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      onCompositionEnd?.(e);
+      if (e.isDefaultPrevented() || !property.compositData) return;
+      const selection = getSelection()!;
+      const safari = isSafari();
+      try {
+        const range = document.createRange();
+        if (safari) {
+          range.setStart(selection.focusNode!, selection.focusOffset);
+          range.setEnd(
+            selection.focusNode!,
+            selection.focusOffset + property.compositData!.length - 1
+          );
+        } else {
+          range.setStart(
+            selection.focusNode!,
+            selection.focusOffset - property.compositData!.length
+          );
+          range.setEnd(selection.focusNode!, selection.focusOffset);
+        }
+
+        range.deleteContents();
+      } catch (e) {
+        //
       }
-    }
-  };
-  const handleCut: ClipboardEventHandler<HTMLDivElement> = (e) => {
-    onCut?.(e);
-    if (e.isDefaultPrevented()) return;
-    const value = getSelection()?.toString() || '';
-    e.clipboardData.setData('text/plain', value);
-    const p = getPosition(refNode.current!);
-    deleteText(p[0], p[1]);
-    property.position = p[0];
-    e.preventDefault();
-  };
-  const handleCompositionStart: CompositionEventHandler<HTMLDivElement> = (e) => {
-    onCompositionStart?.(e);
-    if (e.isDefaultPrevented()) return;
-    property.composit = true;
-  };
-  const handleBeforeInput: FormEventHandler<HTMLDivElement> = (e) => e.preventDefault();
+      insertText(property.compositData);
+      property.compositData = undefined;
+      if (!safari) property.composit = false;
+      property.compositIndex++;
+    },
+    [insertText, onCompositionEnd, property]
+  );
+
   const styleCss = useMemo(() => <style dangerouslySetInnerHTML={{ __html: css }} />, []);
+  const nodeStyle = useMemo(
+    () => ({ caretColor: caret ? undefined : 'transparent', ...style }),
+    [caret, style]
+  );
+  const nodeClassName = useMemo(
+    () => cssClassName + (className ? ' ' + className : ''),
+    [className]
+  );
+  const nodeKey = useMemo(
+    () => getNodeCount(reactNode) + `${property.compositIndex}`,
+    [property.compositIndex, reactNode]
+  );
   return (
     <>
       {styleCss}
       <div
-        className={cssClassName + (className ? ' ' + className : '')}
+        className={nodeClassName}
         ref={refNode}
-        style={{ caretColor: caret ? undefined : 'transparent', ...style }}
+        style={nodeStyle}
         spellCheck={false}
         onDragStart={handleDragStart}
         onCut={handleCut}
-        onCompositionStart={handleCompositionStart}
-        onBeforeInput={handleBeforeInput}
         onDrop={handleDrop}
-        onKeyPress={handleKeyPress}
-        onKeyDown={handleKeyDown}
+        onBeforeInputCapture={handleBeforeInputCapture}
+        onKeyPressCapture={handleKeyPressCapture}
+        onKeyDownCapture={handleKeyDownCapture}
+        onCompositionStart={handleCompositionStart}
         onCompositionUpdate={handleCompositionUpdate}
         onCompositionEnd={handleCompositionEnd}
         onClick={handleClick}
+        onSelect={handleSelect}
         {...props}
       >
         <div
-          key={getNodeCount(reactNode) + `${property.compositIndex}`}
+          key={nodeKey}
           contentEditable
           suppressContentEditableWarning={true}
           onPaste={handlePaste}
