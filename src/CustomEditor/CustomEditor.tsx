@@ -22,44 +22,44 @@ import {
 
 export type CustomEditorEvent =
   | {
-    type: 'getPosition';
-    payload: {
-      onResult: (start: number, end: number) => void;
+      type: 'getPosition';
+      payload: {
+        onResult: (start: number, end: number) => void;
+      };
+    }
+  | {
+      type: 'getLine';
+      payload: {
+        onResult: (line: number, offset: number) => void;
+      };
+    }
+  | {
+      type: 'getScrollLine';
+      payload: {
+        onResult: (line: number, offset: number) => void;
+      };
+    }
+  | {
+      type: 'setPosition';
+      payload: { start: number; end?: number };
+    }
+  | {
+      type: 'setFocus';
+    }
+  | {
+      type: 'setValue';
+      payload: { value: string };
+    }
+  | {
+      type: 'update';
+      payload: { start?: number; end?: number; value?: string };
+    }
+  | {
+      type: 'redo';
+    }
+  | {
+      type: 'undo';
     };
-  }
-  | {
-    type: 'getLine';
-    payload: {
-      onResult: (line: number, offset: number) => void;
-    };
-  }
-  | {
-    type: 'getScrollLine';
-    payload: {
-      onResult: (line: number, offset: number) => void;
-    };
-  }
-  | {
-    type: 'setPosition';
-    payload: { start: number; end?: number };
-  }
-  | {
-    type: 'setFocus';
-  }
-  | {
-    type: 'setValue';
-    payload: { value: string };
-  }
-  | {
-    type: 'update';
-    payload: { start?: number; end?: number; value?: string };
-  }
-  | {
-    type: 'redo';
-  }
-  | {
-    type: 'undo';
-  };
 
 export const useCustomEditor = () => {
   return useLocalEventCreate<CustomEditorEvent>();
@@ -261,7 +261,6 @@ const isEditableNode = (node: Node) => {
   return element?.isContentEditable === true;
 };
 
-
 /**
  * MarkdownEditor
  *
@@ -343,8 +342,8 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
           ? property.text.length
           : end
         : start !== undefined
-          ? startPos
-          : pos[1];
+        ? startPos
+        : pos[1];
     pushText(currentText.slice(0, startPos) + (text || '') + currentText.slice(endPos));
     property.position = startPos + (text?.length || 0);
   };
@@ -433,6 +432,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     onKeyDown?.(e);
     if (e.isDefaultPrevented() || property.composit || e.nativeEvent.isComposing) {
       if (e.key === 'Enter') property.composit = false;
+      e.stopPropagation();
       return;
     }
     switch (e.key) {
@@ -577,6 +577,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     if (e.isDefaultPrevented()) return;
     if (e.key !== 'Enter') insertText(e.key);
     e.preventDefault();
+    e.stopPropagation();
   };
   const handleClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
     if (e.isDefaultPrevented()) return;
@@ -604,8 +605,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     property.composit = true;
   };
   const handleBeforeInput: FormEventHandler<HTMLDivElement> = (e) => e.preventDefault();
-  const styleCss = useMemo(() => <style dangerouslySetInnerHTML={{ __html: css }} />
-    , [])
+  const styleCss = useMemo(() => <style dangerouslySetInnerHTML={{ __html: css }} />, []);
   return (
     <>
       {styleCss}

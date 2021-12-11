@@ -109,11 +109,9 @@ function ReactCompiler(this: Processor, components?: MarkdownComponents) {
   this.Compiler = Compiler;
 }
 export const createProcesser = (option?: MarkdownComponents) => {
-  return unified().use(remarkParse as never).use(remarkGfm).use(ReactCompiler, option) as Processor<
-    Root,
-    Root,
-    Root,
-    React.ReactElement
-  >;
+  return unified()
+    .use(remarkParse as never)
+    .use(remarkGfm)
+    .use(ReactCompiler, option) as Processor<Root, Root, Root, React.ReactElement>;
 };
 export default true;
