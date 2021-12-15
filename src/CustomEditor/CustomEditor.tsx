@@ -631,7 +631,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   const handleCompositionEnd: CompositionEventHandler<HTMLDivElement> = useCallback(
     (e) => {
       onCompositionEnd?.(e);
-      if (e.isDefaultPrevented() || !property.compositData) return;
+      if (e.isDefaultPrevented() || !property.compositData || !property.composit) return;
       const selection = getSelection()!;
       const safari = isSafari();
       try {

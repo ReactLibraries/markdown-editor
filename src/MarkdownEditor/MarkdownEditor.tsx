@@ -1,4 +1,4 @@
-import React, { FC, HTMLAttributes, useMemo } from 'react';
+import React, { FC, HTMLAttributes, useCallback, useMemo } from 'react';
 import { LocalEvent } from '@react-libraries/use-local-event';
 import { CustomEditor, CustomEditorEvent } from '../CustomEditor/CustomEditor.js';
 import { createProcesser, MarkdownComponents } from './MarkdownCompiler.js';
@@ -23,6 +23,10 @@ export const MarkdownEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
   ...props
 }) => {
   const processer = useMemo(() => createProcesser(components), [components]);
-  return <CustomEditor {...props} onCreateNode={(value) => processer.processSync(value).result} />;
+  const handleCreateNode = useCallback(
+    (value: string) => processer.processSync(value).result,
+    [processer]
+  );
+  return <CustomEditor {...props} onCreateNode={handleCreateNode} />;
 };
 export default true;
