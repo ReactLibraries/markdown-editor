@@ -530,7 +530,7 @@ export const CustomEditor: FC<Props & HTMLAttributes<HTMLDivElement>> = ({
     (e) => {
       onKeyDownCapture?.(e);
       if (e.isDefaultPrevented() || property.composit || e.nativeEvent.isComposing) {
-        if (e.key === 'Enter') property.composit = false;
+        if (isSafari() && e.key === 'Enter') property.composit = false;
         e.stopPropagation();
         return;
       }
